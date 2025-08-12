@@ -1,1 +1,66 @@
+<body>
+  <div class="app">
+    <header>
+      <h1 class="underline-title">Brenton’s Grocery List — Home Edition</h1>
+      <div class="toolbar">
+        <input id="search" type="text" placeholder="Search items… (e.g., milk, 🍞)">
+        <label class="switch"><input id="hidePurchased" type="checkbox"> Hide purchased</label>
+        <button id="shareBtn" class="ghost">Share</button>
+        <button id="exportBtn" class="ghost">Export</button>
+        <label class="btn ghost" for="importFile">Import</label>
+        <input id="importFile" type="file" accept="application/json" style="display:none">
+        <button id="clearAll" class="danger">Clear all</button>
+      </div>
+    </header>
+
+    <section class="card add">
+      <div class="quick" id="quick">
+        <!-- quick-add favorites -->
+        <button class="chip" data-emoji="🥚" data-name="Eggs" data-cat="Dairy">🍳 Eggs</button>
+        <button class="chip" data-emoji="🥛" data-name="Milk" data-cat="Dairy">🥛 Milk</button>
+        <button class="chip" data-emoji="🍞" data-name="Bread" data-cat="Bakery">🍞 Bread</button>
+        <button class="chip" data-emoji="🍎" data-name="Apples" data-cat="Produce">🍎 Apples</button>
+        <button class="chip" data-emoji="🧻" data-name="Toilet Paper" data-cat="Household">🧻 TP</button>
+        <button class="chip" data-emoji="🍗" data-name="Chicken" data-cat="Protein">🍗 Chicken</button>
+      </div>
+
+      <form id="addForm" class="add-row" autocomplete="off">
+        <input id="emoji" type="text" maxlength="3" placeholder="🛒" title="Emoji">
+        <input id="name" type="text" placeholder="Add an item (e.g., Cereal)…" required>
+        <input id="qty" type="number" min="1" value="1" title="Qty">
+        <div class="cat-wrap">
+          <select id="cat" title="Category">
+            <option>Produce</option>
+            <option>Bakery</option>
+            <option>Dairy</option>
+            <option>Protein</option>
+            <option>Pantry</option>
+            <option>Frozen</option>
+            <option>Household</option>
+            <option>Snacks</option>
+            <option>Beverages</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <button class="add-btn ok" type="submit">Add</button>
+      </form>
+    </section>
+
+    <section class="lists">
+      <div class="card list">
+        <h2>🧾 To Buy</h2>
+        <ul id="todo"></ul>
+        <div id="emptyTodo" class="empty" style="display:none">Nothing here. Add something above 👆</div>
+      </div>
+
+      <div class="card list">
+        <h2>✅ Purchased <button id="clearPurchased" class="link">(clear)</button></h2>
+        <ul id="done"></ul>
+        <div id="emptyDone" class="empty" style="display:none">No purchased items yet.</div>
+      </div>
+    </section>
+
+    <footer>Tip: tap a quick chip to auto-add with an emoji. It all saves to this device (local only).</footer>
+  </div>
+</body>
 
