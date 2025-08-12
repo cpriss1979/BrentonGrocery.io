@@ -62,5 +62,241 @@
 
     <footer>Tip: tap a quick chip to auto-add with an emoji. It all saves to this device (local only).</footer>
   </div>
+  <script>
+  // Peter’s tiny grocery app — localStorage only, no libraries.
+  const STORAGE_KEY = "brenton-grocery-v1";
+
+  /** @type {{items:Array<{id:string,emoji:string,name:string,qty:number,cat:string,checked:boolean,created:number}>}} */
+  let state = { items: [] };
+
+  // ---- DOM
+  const $ = (sel, root=document)=>root.querySelector(sel);
+  const $$ = (sel, root=document)=>[...root.querySelectorAll(sel)];
+  const el = {
+    search: $("#search"),
+    hidePurchased: $("#hidePurchased"),
+    addForm: $("#addForm"),
+    emoji: $("#emoji"),
+    name: $("#name"),
+    qty: $("#qty"),
+    cat: $("#cat"),
+    todo: $("#todo"),
+    done: $("#done"),
+    emptyTodo: $("#emptyTodo"),
+    emptyDone: $("#emptyDone"),
+    clearPurchased: $("#clearPurchased"),
+    clearAll: $("#clearAll"),
+    shareBtn: $("#shareBtn"),
+    exportBtn: $("#exportBtn"),
+    importFile: $("#importFile"),
+  };
+
+  // ---- Storage
+  function load(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.items)) state.items = data.items;
+    }catch(e){ console.warn("load error", e); }
+  }
+  function save(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  // ---- Helpers
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+  function cleanEmoji(s){ return (s||"").trim().slice(0,3); } // simple: let user paste emoji
+  function titleCase(s){ return s.replace(/\s+/g," ").trim().replace(/\b\w/g, m => m.toUpperCase()); }
+
+  function addItem({emoji,name,qty,cat}){
+    const item = {
+      id: uid(),
+      emoji: cleanEmoji(emoji) || "🛒",
+      name: titleCase(name),
+      qty: Math.max(1, Number(qty||1)),
+      cat: cat || "Other",
+      checked: false,
+      created: Date.now()
+    };
+    state.items.push(item);
+    save(); render();
+  }
+
+  function updateItem(id, patch){
+    const it = state.items.find(i => i.id === id);
+    if (!it) return;
+    Object.assign(it, patch);
+    save(); render();
+  }
+
+  function deleteItem(id){
+    state.items = state.items.filter(i => i.id !== id);
+    save(); render();
+  }
+
+  function clearPurchased(){
+    state.items = state.items.filter(i => !i.checked);
+    save(); render();
+  }
+
+  function clearAll(){
+    if (!confirm("Clear ALL items? This cannot be undone.")) return;
+    state.items = []; save(); render();
+  }
+
+  // ---- Render
+  function render(){
+    const q = el.search.value.trim().toLowerCase();
+    const hideDone = el.hidePurchased.checked;
+
+    // split
+    const todoItems = state.items.filter(i => !i.checked);
+    const doneItems = state.items.filter(i => i.checked);
+
+    // filter
+    const matches = (it) => {
+      if (!q) return true;
+      return (it.name.toLowerCase().includes(q) || it.emoji.includes(q) || it.cat.toLowerCase().includes(q));
+    };
+
+    const todo = todoItems.filter(matches).sort(byCatThenName);
+    const done = doneItems.filter(matches).sort(byCatThenName);
+
+    // render lists
+    el.todo.innerHTML = "";
+    el.done.innerHTML = "";
+
+    todo.forEach(it => el.todo.appendChild(itemRow(it)));
+    if (!todo.length) el.emptyTodo.style.display = "block"; else el.emptyTodo.style.display = "none";
+
+    if (hideDone){
+      el.done.parentElement.style.display = "none";
+    } else {
+      el.done.parentElement.style.display = "";
+      done.forEach(it => el.done.appendChild(itemRow(it)));
+      el.emptyDone.style.display = done.length ? "none" : "block";
+    }
+  }
+
+  function byCatThenName(a,b){
+    return (a.cat||"").localeCompare(b.cat||"") || a.name.localeCompare(b.name);
+  }
+
+  function itemRow(it){
+    const li = document.createElement("li");
+    li.className = "item";
+    if (it.checked) li.classList.add("checked");
+
+    li.innerHTML = `
+      <div class="it-emoji">${it.emoji}</div>
+      <label class="it-name">
+        <input type="checkbox" ${it.checked?"checked":""} data-role="toggle">
+        <span class="${it.checked?"strike":""}">${it.name}</span>
+        <small>${it.cat}</small>
+      </label>
+      <div class="qty-wrap">
+        <button class="btn ghost" data-role="minus" title="Less">−</button>
+        <input class="qty" type="number" min="1" value="${it.qty}" data-role="qty">
+        <button class="btn ghost" data-role="plus" title="More">＋</button>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" data-role="edit" title="Edit">Edit</button>
+        <button class="btn danger" data-role="del" title="Delete">Delete</button>
+      </div>
+    `;
+
+    // events
+    const on = (sel, ev, fn) => li.querySelector(sel)?.addEventListener(ev, fn);
+
+    on('[data-role="toggle"]','change', e => updateItem(it.id, {checked:e.target.checked}));
+    on('[data-role="minus"]','click', () => updateItem(it.id, {qty: Math.max(1, it.qty-1)}));
+    on('[data-role="plus"]','click',  () => updateItem(it.id, {qty: it.qty+1}));
+    on('[data-role="qty"]','change',  e => updateItem(it.id, {qty: Math.max(1, Number(e.target.value||1))}));
+    on('[data-role="del"]','click',   () => deleteItem(it.id));
+    on('[data-role="edit"]','click',  () => editItemPrompt(it));
+
+    return li;
+  }
+
+  function editItemPrompt(it){
+    const emoji = prompt("Emoji for item:", it.emoji) ?? it.emoji;
+    const name  = prompt("Item name:", it.name) ?? it.name;
+    const qty   = Number(prompt("Quantity:", it.qty) ?? it.qty) || it.qty;
+    const cat   = prompt("Category (Produce/Bakery/...):", it.cat) ?? it.cat;
+    updateItem(it.id, {emoji: cleanEmoji(emoji), name: titleCase(name), qty, cat});
+  }
+
+  // ---- Export / Import / Share
+  function exportJSON(){
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "grocery-list.json"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importJSON(file){
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const data = JSON.parse(reader.result);
+        if (!data || !Array.isArray(data.items)) throw new Error("Invalid file");
+        state = { items: data.items.map(coerceItem) };
+        save(); render();
+      }catch(e){ alert("Import failed: " + e.message); }
+    };
+    reader.readAsText(file);
+  }
+
+  function coerceItem(it){
+    return {
+      id: String(it.id || uid()),
+      emoji: cleanEmoji(it.emoji)||"🛒",
+      name: titleCase(String(it.name||"Item")),
+      qty: Math.max(1, Number(it.qty||1)),
+      cat: String(it.cat||"Other"),
+      checked: !!it.checked,
+      created: Number(it.created||Date.now())
+    };
+  }
+
+  async function shareList(){
+    const items = state.items.filter(i=>!i.checked).sort(byCatThenName);
+    if (!items.length){ alert("Nothing to share — your ‘To Buy’ list is empty."); return; }
+    const lines = items.map(i => `${i.emoji} ${i.name} x${i.qty} — ${i.cat}`);
+    const text = `Grocery List:\n` + lines.join("\n");
+    if (navigator.share){
+      try{ await navigator.share({text}); } catch {}
+    }else{
+      await navigator.clipboard.writeText(text).catch(()=>{});
+      alert("Copied list to clipboard!");
+    }
+  }
+
+  // ---- Events
+  // quick chips
+  $("#quick").addEventListener("click", (e)=>{
+    const btn = e.target.closest(".chip"); if (!btn) return;
+    addItem({emoji:btn.dataset.emoji, name:btn.dataset.name, qty:1, cat:btn.dataset.cat});
+  });
+
+  el.addForm.addEventListener("submit", (e)=>{
+    e.preventDefault();
+    addItem({emoji:el.emoji.value, name:el.name.value, qty:el.qty.value, cat:el.cat.value});
+    el.emoji.value = ""; el.name.value = ""; el.qty.value = 1; el.name.focus();
+  });
+
+  el.search.addEventListener("input", render);
+  el.hidePurchased.addEventListener("change", render);
+  el.clearPurchased.addEventListener("click", (e)=>{ e.preventDefault(); clearPurchased(); });
+  el.clearAll.addEventListener("click", clearAll);
+  el.exportBtn.addEventListener("click", exportJSON);
+  el.importFile.addEventListener("change", (e)=> e.target.files[0] && importJSON(e.target.files[0]));
+  el.shareBtn.addEventListener("click", shareList);
+
+  // ---- Init
+  load(); render();
+</script>
 </body>
 
